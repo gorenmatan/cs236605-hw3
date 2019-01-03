@@ -68,9 +68,7 @@ def chars_to_onehot(text: str, char_to_idx: dict) -> Tensor:
     N, D = len(text), len(char_to_idx)
     result = torch.zeros((N, D), dtype=torch.int8)
     for i, character in enumerate(text):
-        one_hot = torch.zeros((1, D))
-        one_hot[:, char_to_idx[character]] = 1
-        result[i, :] = one_hot
+        result[i, char_to_idx[character]] = 1
     # ========================
     return result
 
@@ -87,8 +85,8 @@ def onehot_to_chars(embedded_text: Tensor, idx_to_char: dict) -> str:
     """
     # TODO: Implement the reverse-embedding.
     # ====== YOUR CODE: ======
-    indices = torch.argmax(embedded_text, dim=1).numpy()
-    result = "".join([idx_to_char[idx] for idx in indices])
+    indices = torch.argmax(embedded_text, dim=1)
+    result = "".join([idx_to_char[idx.item()] for idx in indices])
     # ========================
     return result
 
@@ -117,11 +115,20 @@ def chars_to_labelled_samples(text: str, char_to_idx: dict, seq_len: int,
     # 3. Create the labels tensor in a similar way and convert to indices.
     # Note that no explicit loops are required to implement this function.
     # ====== YOUR CODE: ======
+    #import ipdb
     embed_text = chars_to_onehot(text, char_to_idx).to(device)
     char_labels = torch.argmax(embed_text, dim=1).to(device)
-    char_labels = char_labels[1:, :]
-    samples = torch.split(embed_text, split_size_or_sections=seq_len, dim=0)
-    labels = None
+    char_labels = char_labels[1:]
+    #ipdb.set_trace()
+    samples = list(torch.split(embed_text, split_size_or_sections=seq_len, dim=0))
+    labels = list(torch.split(char_labels, split_size_or_sections=seq_len, dim=0))
+    if samples[0].shape != samples[-1].shape:
+        samples.pop()
+    if labels[0].shape != labels[-1].shape:
+        labels.pop()
+    
+    samples = torch.stack(samples)
+    labels = torch.stack(labels)
     # ========================
     return samples, labels
 
