@@ -22,7 +22,11 @@ def char_maps(text: str):
     # It's best if you also sort the chars before assigning indices, so that
     # they're in lexical order.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    chars = set(text)
+    sorted(chars)
+    indices = list(range(len(chars)))
+    char_to_idx = dict(zip(chars, indices))
+    idx_to_char = dict(zip(indices, chars))
     # ========================
     return char_to_idx, idx_to_char
 
@@ -38,7 +42,10 @@ def remove_chars(text: str, chars_to_remove):
     """
     # TODO: Implement according to the docstring.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    text_clean = str(text)
+    n_removed = sum([text_clean.count(character) for character in chars_to_remove])
+    for character in chars_to_remove:
+        text_clean = text_clean.replace(character, "")
     # ========================
     return text_clean, n_removed
 
@@ -58,7 +65,12 @@ def chars_to_onehot(text: str, char_to_idx: dict) -> Tensor:
     """
     # TODO: Implement the embedding.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    N, D = len(text), len(char_to_idx)
+    result = torch.zeros((N, D), dtype=torch.int8)
+    for i, character in enumerate(text):
+        one_hot = torch.zeros((1, D))
+        one_hot[:, char_to_idx[character]] = 1
+        result[i, :] = one_hot
     # ========================
     return result
 
@@ -75,7 +87,8 @@ def onehot_to_chars(embedded_text: Tensor, idx_to_char: dict) -> str:
     """
     # TODO: Implement the reverse-embedding.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    indices = torch.argmax(embedded_text, dim=1).numpy()
+    result = "".join([idx_to_char[idx] for idx in indices])
     # ========================
     return result
 
@@ -104,7 +117,11 @@ def chars_to_labelled_samples(text: str, char_to_idx: dict, seq_len: int,
     # 3. Create the labels tensor in a similar way and convert to indices.
     # Note that no explicit loops are required to implement this function.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    embed_text = chars_to_onehot(text, char_to_idx).to(device)
+    char_labels = torch.argmax(embed_text, dim=1).to(device)
+    char_labels = char_labels[1:, :]
+    samples = torch.split(embed_text, split_size_or_sections=seq_len, dim=0)
+    labels = None
     # ========================
     return samples, labels
 
@@ -118,9 +135,11 @@ def hot_softmax(y, dim=0, temperature=1.0):
     :param temperature: Temperature.
     :return: Softmax computed with the temperature parameter.
     """
-    # TODO: Implement based on the above.
+    # DONE: Implement based on the above.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    assert temperature != 0.0, "Temperature must nt be zero"
+    y_ = y / temperature
+    result = F.softmax(y_, dim)
     # ========================
     return result
 
