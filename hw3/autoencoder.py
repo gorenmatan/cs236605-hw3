@@ -8,7 +8,8 @@ class EncoderCNN(nn.Module):
         super().__init__()
 
         modules = []
-
+        self.kernel_sz = 5
+        self.pool_sz = 2
         # TODO: Implement a CNN. Save the layers in the modules list.
         # The input shape is an image batch: (N, in_channels, H_in, W_in).
         # The output shape should be (N, out_channels, H_out, W_out).
@@ -17,7 +18,12 @@ class EncoderCNN(nn.Module):
         # You can use any Conv layer parameters, use pooling or only strides,
         # use any activation functions, use BN or Dropout, etc.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        K = [64, 128, 256]
+        for input_chnl, output_chnl in zip([in_channels] + K, K + [out_channels]):
+            modules.extend([nn.Conv2d(input_chnl, output_chnl, self.kernel_sz, padding=2, stride=1), 
+                            nn.BatchNorm2d(output_chnl),
+                            nn.MaxPool2d(self.pool_sz),
+                            nn.ReLU()])
         # ========================
         self.cnn = nn.Sequential(*modules)
 
@@ -31,6 +37,8 @@ class DecoderCNN(nn.Module):
 
         modules = []
 
+        self.unpool_sz = 2
+        self.kernel_sz = 5
         # TODO: Implement the "mirror" CNN of the encoder.
         # For example, instead of Conv layers use transposed convolutions,
         # instead of pooling do unpooling (if relevant) and so on.
@@ -39,7 +47,12 @@ class DecoderCNN(nn.Module):
         # Output should be a batch of images, with same dimensions as the
         # inputs to the Encoder were.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        K = [256, 128, 64]
+        for input_chnl, output_chnl in zip([in_channels] + K, K + [out_channels]):
+            modules.extend([nn.ConvTranspose2d(input_chnl, output_chnl, self.kernel_sz, padding=2, stride=1), 
+                            nn.BatchNorm2d(output_chnl),
+                            nn.UpsamplingBilinear2d(scale_factor=self.unpool_sz),
+                            nn.ReLU()])
         # ========================
         self.cnn = nn.Sequential(*modules)
 
@@ -67,7 +80,18 @@ class VAE(nn.Module):
 
         # TODO: Add parameters needed for encode() and decode().
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        # get the dimension of the feature output
+        #import ipdb
+        #ipdb.set_trace()
+        device = next(self.parameters()).device
+        x = torch.randn(1, *in_size, device=device)
+        h = self.features_encoder(x)
+        self.h_shape = h.shape[1:]
+        h_dim = torch.zeros(self.h_shape).numel()
+        
+        # create the affine transformation layers for the encode() and decode() operations
+        self.fc_u, self.fc_logvar = nn.Linear(h_dim ,z_dim).to(device), nn.Linear(h_dim, z_dim).to(device)
+        self.fc_rec = nn.Linear(z_dim, h_dim).to(device)
         # ========================
 
     def _check_features(self, in_size):
@@ -87,7 +111,13 @@ class VAE(nn.Module):
         # log_sigma2 (mean and log variance) of the posterior p(z|x).
         # 2. Apply the reparametrization trick.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        #import ipdb
+        #ipdb.set_trace()
+        h = self.features_encoder(x)
+        h = h.view(h.size(0), -1)
+        mu, log_sigma2 = self.fc_u(h), self.fc_logvar(h)
+        std = log_sigma2.mul(0.5).exp_()
+        z = mu + torch.randn_like(std) * std
         # ========================
 
         return z, mu, log_sigma2
@@ -97,7 +127,11 @@ class VAE(nn.Module):
         # 1. Convert latent to features.
         # 2. Apply features decoder.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        #import ipdb
+        #ipdb.set_trace()
+        h_rec = self.fc_rec(z)
+        h_rec = h_rec.view(h_rec.size(0), *self.h_shape) # creates a tensor of size (BATCH_SZ, ORIG_DIMENSIONS)
+        x_rec = self.features_decoder(h_rec)
         # ========================
 
         # Scale to [-1, 1] (same dynamic range as original images).
