@@ -117,17 +117,15 @@ def chars_to_labelled_samples(text: str, char_to_idx: dict, seq_len: int,
     # 3. Create the labels tensor in a similar way and convert to indices.
     # Note that no explicit loops are required to implement this function.
     # ====== YOUR CODE: ======
-    #import ipdb
     embed_text = chars_to_onehot(text, char_to_idx).to(device)
     char_labels = torch.argmax(embed_text, dim=1).to(device)
+    embed_text = embed_text[:-1,:]
     char_labels = char_labels[1:]
-    #ipdb.set_trace()
-    samples = list(torch.split(embed_text, split_size_or_sections=seq_len, dim=0))
-    labels = list(torch.split(char_labels, split_size_or_sections=seq_len, dim=0))
-    if samples[0].shape != samples[-1].shape:
-        samples.pop()
-    if labels[0].shape != labels[-1].shape:
-        labels.pop()
+    samples = torch.split(embed_text, seq_len, dim=0)
+    labels = torch.split(char_labels, seq_len, dim=0)
+    if len(char_labels) % seq_len != 0:
+        samples = samples[:-1]
+        labels = labels[:-1]
     
     samples = torch.stack(samples)
     labels = torch.stack(labels)
@@ -146,9 +144,10 @@ def hot_softmax(y, dim=0, temperature=1.0):
     """
     # DONE: Implement based on the above.
     # ====== YOUR CODE: ======
-    assert temperature != 0.0, "Temperature must nt be zero"
-    y_ = y / temperature
-    result = F.softmax(y_, dim)
+    if temperature == 0.0:
+        raise ValueError("Temperature must not be zero")
+
+    result = F.softmax(y / temperature, dim=dim)
     # ========================
     return result
 
@@ -184,7 +183,15 @@ def generate_from_model(model, start_sequence, n_chars, char_maps, T):
     # necessary for this. Best to disable tracking for speed.
     # See torch.no_grad().
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    with torch.no_grad():
+        x = torch.unsqueeze(chars_to_onehot(start_sequence, idx_to_char), 0).to(device)
+        h = None
+
+        for i in range(n_chars - len(start_sequence)):
+            y, h = model(x.to(dtype=torch.float), hidden_state=h)
+            x_idx = torch.multinomial(y, 1)
+            out_text += idx_to_char[x_idx.item()]
+            x = torch.unsqueeze(chars_to_onehot(out_text[-1], char_to_idx), 0).to(device)
     # ========================
 
     return out_text
