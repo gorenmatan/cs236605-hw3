@@ -1,4 +1,5 @@
 import re
+import itertools as it
 
 import torch
 import torch.nn as nn
@@ -22,9 +23,8 @@ def char_maps(text: str):
     # It's best if you also sort the chars before assigning indices, so that
     # they're in lexical order.
     # ====== YOUR CODE: ======
-    chars = set(text)
-    sorted(chars)
-    indices = list(range(len(chars)))
+    chars = list(sorted(set(text)))
+    indices = range(len(chars))
     char_to_idx = dict(zip(chars, indices))
     idx_to_char = dict(zip(indices, chars))
     # ========================
@@ -42,10 +42,8 @@ def remove_chars(text: str, chars_to_remove):
     """
     # TODO: Implement according to the docstring.
     # ====== YOUR CODE: ======
-    text_clean = str(text)
-    n_removed = sum([text_clean.count(character) for character in chars_to_remove])
-    for character in chars_to_remove:
-        text_clean = text_clean.replace(character, "")
+    rx = re.compile('[{}]'.format(''.join(re.escape(c) for c in chars_to_remove)))
+    text_clean, n_removed = rx.subn('', text)
     # ========================
     return text_clean, n_removed
 
@@ -69,6 +67,10 @@ def chars_to_onehot(text: str, char_to_idx: dict) -> Tensor:
     result = torch.zeros((N, D), dtype=torch.int8)
     for i, character in enumerate(text):
         result[i, char_to_idx[character]] = 1
+    ## does using `scatter` allow GPU-optimization?
+    #result = torch.zeros(len(text), len(char_to_idx), dtype=torch.int8)
+    #indices = torch.tensor([char_to_idx[c] for c in text])
+    #result.scatter_(1, indices.view(-1,1), 1)
     # ========================
     return result
 
@@ -86,7 +88,7 @@ def onehot_to_chars(embedded_text: Tensor, idx_to_char: dict) -> str:
     # TODO: Implement the reverse-embedding.
     # ====== YOUR CODE: ======
     indices = torch.argmax(embedded_text, dim=1)
-    result = "".join([idx_to_char[idx.item()] for idx in indices])
+    result = "".join(idx_to_char[idx.item()] for idx in indices)
     # ========================
     return result
 
