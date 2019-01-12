@@ -184,14 +184,17 @@ def generate_from_model(model, start_sequence, n_chars, char_maps, T):
     # See torch.no_grad().
     # ====== YOUR CODE: ======
     with torch.no_grad():
-        x = torch.unsqueeze(chars_to_onehot(start_sequence, idx_to_char), 0).to(device)
+        x = torch.unsqueeze(chars_to_onehot(start_sequence, char_to_idx), 0)
         h = None
 
         for i in range(n_chars - len(start_sequence)):
-            y, h = model(x.to(dtype=torch.float), hidden_state=h)
-            x_idx = torch.multinomial(y, 1)
+            x = x.to(dtype=torch.float)
+            x = x.to(device)
+            y, h = model(x, hidden_state=h)
+            proba = hot_softmax(y[0, -1, :], temperature=T)
+            x_idx = torch.multinomial(proba, 1)
             out_text += idx_to_char[x_idx.item()]
-            x = torch.unsqueeze(chars_to_onehot(out_text[-1], char_to_idx), 0).to(device)
+            x = torch.unsqueeze(chars_to_onehot(out_text[-1], char_to_idx), 0)
     # ========================
 
     return out_text
@@ -235,7 +238,32 @@ class MultilayerGRU(nn.Module):
         #     then call self.register_parameter() on them. Also make
         #     sure to initialize them. See functions in torch.nn.init.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.layer_params.append((nn.Linear(in_dim, 1, bias=True),
+                                  nn.Linear(h_dim, 1, bias=False),
+                                  nn.Linear(in_dim, 1, bias=True),
+                                  nn.Linear(h_dim, 1, bias=False),
+                                  nn.Linear(in_dim, h_dim, bias=True),
+                                  nn.Linear(h_dim, h_dim, bias=False),
+                                  nn.Dropout(p=dropout)))
+
+        for i in range(n_layers - 1):
+            weights_xz = nn.Linear(h_dim, 1, bias=True)
+            weights_hz = nn.Linear(h_dim, 1, bias=False)
+            weights_xr = nn.Linear(h_dim, 1, bias=True)
+            weights_hr = nn.Linear(h_dim, 1, bias=False)
+            weights_xg = nn.Linear(h_dim, h_dim, bias=True)
+            weights_hg = nn.Linear(h_dim, h_dim, bias=False)
+            drop = nn.Dropout(p=dropout)
+            self.layer_params.append((weights_xz, weights_hz,
+                                      weights_xr, weights_hr,
+                                      weights_xg, weights_hg,
+                                      drop))
+
+        for i, layer in enumerate(self.layer_params):
+            for j, param in enumerate(layer):
+                self.add_module(f'param_l{i}_p{j}', param)
+
+        self.weights_hy = nn.Linear(h_dim, out_dim, bias=True)
         # ========================
 
     def forward(self, input: Tensor, hidden_state: Tensor=None):
@@ -251,7 +279,7 @@ class MultilayerGRU(nn.Module):
         of shape (B, S, O) where B,S are as above and O is the output
         dimension.
         The hidden_state tensor is the final hidden state, per layer, of shape
-        (B, L, H) as above.
+            (B, L, H) as above.
         """
         batch_size, seq_len, _ = input.shape
 
@@ -270,6 +298,21 @@ class MultilayerGRU(nn.Module):
         # Tip: You can use torch.stack() to combine multiple tensors into a
         # single tensor in a differentiable manner.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        y = torch.zeros_like(layer_input)
+        for s in range(seq_len):
+            x = layer_input[:, s, :]
+            for i, (h, (w_xz, w_hz, w_xr, w_hr, w_xg, w_hg, drop)) in enumerate(zip(layer_states, self.layer_params)):
+                z = torch.sigmoid(w_xz(x) + w_hz(h))
+                r = torch.sigmoid(w_xz(x) + w_hr(h))
+                g = torch.tanh(w_xg(x) + w_hg(r * h))
+                h = h * z + (1 - z) * g
+
+                layer_states[i] = h
+                x = drop(h)
+
+            y[:, s, :] = self.weights_hy(x)
+
+        layer_output = y
+        hidden_state = torch.stack(layer_states, dim=1)
         # ========================
         return layer_output, hidden_state
