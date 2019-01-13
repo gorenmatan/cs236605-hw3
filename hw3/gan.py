@@ -32,15 +32,13 @@ class Discriminator(nn.Module):
         # You can use any Conv layer parameters, use pooling or only strides,
         # use any activation functions, use BN or Dropout, etc.
         # ====== YOUR CODE: ======
-        import ipdb
-        ipdb.set_trace()
         K = [64, 128, 256]
         in_channels = self.in_size[0]
         num_pooling_layers = 0
         
         fa_modules = []
         
-        for input_chnl, output_chnl in zip([in_channels] + K, K + [256]):
+        for input_chnl, output_chnl in zip([in_channels] + K, K):
             fa_modules.extend([nn.Conv2d(input_chnl, output_chnl, self.kernel_sz, padding=2, stride=1), 
                                nn.BatchNorm2d(output_chnl),
                                nn.MaxPool2d(self.pool_sz),
@@ -53,10 +51,10 @@ class Discriminator(nn.Module):
         ds_factor = self.pool_sz ** num_pooling_layers
         h_ds, w_ds = h // ds_factor, w // ds_factor
         
-        classifier_modules = [nn.Linear(h_ds * w_ds, h_ds * w_ds // 4),
+        classifier_modules = [nn.Linear(h_ds * w_ds * K[-1], h_ds * w_ds // 4),
                               nn.ReLU(),
                               nn.Dropout(0.2),
-                              nn.Linear(h_ds * w_ds / 4, 1)]
+                              nn.Linear(h_ds * w_ds // 4, 1)]
         self.classifier = nn.Sequential(*classifier_modules)
         # ========================
 
@@ -70,10 +68,8 @@ class Discriminator(nn.Module):
         # No need to apply sigmoid to obtain probability - we'll combine it
         # with the loss due to improved numerical stability.
         # ====== YOUR CODE: ======
-        import ipdb
-        ipdb.set_trace()
         x = self.feature_extractor(x)
-        x = x.view(-1, x.size(-1))
+        x = x.view(x.size(0), -1)
         y = self.classifier(x)
         # ========================
         return y
