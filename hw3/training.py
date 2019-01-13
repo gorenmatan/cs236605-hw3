@@ -9,6 +9,7 @@ from typing import Callable, Any
 from pathlib import Path
 from cs236605.train_results import BatchResult, EpochResult, FitResult
 
+import numpy as np
 
 class Trainer(abc.ABC):
     """
@@ -85,7 +86,31 @@ class Trainer(abc.ABC):
             # - Implement early stopping. This is a very useful and
             #   simple regularization technique that is highly recommended.
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            train_result = self.train_epoch(dl_train, verbose=verbose)
+            train_loss.extend(train_result.losses)
+            train_acc.append(train_result.accuracy)
+
+            test_result = self.test_epoch(dl_test, verbose=verbose)
+            test_loss.extend(test_result.losses)
+            test_acc.append(test_result.accuracy)
+
+            if best_acc is None or best_acc < test_acc[-1]:
+                best_acc = test_acc[-1]
+                save_checkpoint = True
+
+            if epoch == 0:
+                current_loss = np.mean(test_result.losses)
+            else:
+                previous_loss = current_loss
+                current_loss = np.mean(test_result.losses)
+                if current_loss < previous_loss:
+                    epochs_without_improvement = 0
+                else:
+                    epochs_without_improvement += 1
+
+            if early_stopping and epochs_without_improvement >= early_stopping:
+                actual_num_epochs = epoch
+                break
             # ========================
 
             # Save model checkpoint if requested
@@ -207,14 +232,14 @@ class RNNTrainer(Trainer):
     def train_epoch(self, dl_train: DataLoader, **kw):
         # TODO: Implement modifications to the base method, if needed.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.hidden_state = None
         # ========================
         return super().train_epoch(dl_train, **kw)
 
     def test_epoch(self, dl_test: DataLoader, **kw):
         # TODO: Implement modifications to the base method, if needed.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.hidden_state = None
         # ========================
         return super().test_epoch(dl_test, **kw)
 
@@ -231,7 +256,22 @@ class RNNTrainer(Trainer):
         # - Update params
         # - Calculate number of correct char predictions
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        y_scores, self.hidden_state = self.model(x, hidden_state=self.hidden_state)
+        # need to transpose to match the shape the loss function
+        # (CrossEntropy in the notebook) expects
+        y_scores = torch.transpose(y_scores, 1, 2)
+        self.optimizer.zero_grad()
+        loss = self.loss_fn(y_scores, y)
+        # PROBLEM: we need to retain self.hidden_state` between batches (otherwise the
+        # overfit test fails), but then loss.backward doesn't work without
+        # `retain_graph=True`. However, retaining the graphs causes a CUDA Out of Memory
+        # error during the final training (where batch size is 256).
+        # Maybe we don't really need `retain_graph=True` and can find another way?
+        # Maybe the hidden states don't need to `require_gradient`?
+        loss.backward(retain_graph=True)
+        self.optimizer.step()
+        y_pred = torch.argmax(y_scores, dim=1)
+        num_correct = torch.sum(y == y_pred)
         # ========================
 
         # Note: scaling num_correct by seq_len because each sample has seq_len
@@ -250,7 +290,13 @@ class RNNTrainer(Trainer):
             # - Loss calculation
             # - Calculate number of correct predictions
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            y_scores, self.hidden_state = self.model(x, hidden_state=self.hidden_state)
+            # need to transpose to match the shape the loss function
+            # (CrossEntropy in the notebook) expects
+            y_scores = torch.transpose(y_scores, 1, 2)
+            loss = self.loss_fn(y_scores, y)
+            y_pred = torch.argmax(y_scores, dim=1)
+            num_correct = torch.sum(y == y_pred)
             # ========================
 
         return BatchResult(loss.item(), num_correct.item() / seq_len)
