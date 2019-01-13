@@ -22,7 +22,41 @@ class Discriminator(nn.Module):
         # You can then use either an affine layer or another conv layer to
         # flatten the features.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.kernel_sz = 5
+        self.pool_sz = 2
+        # TODO: Implement a CNN. Save the layers in the modules list.
+        # The input shape is an image batch: (N, in_channels, H_in, W_in).
+        # The output shape should be (N, out_channels, H_out, W_out).
+        # You can assume H_in, W_in >= 64.
+        # Architecture is up to you, but you should use at least 3 Conv layers.
+        # You can use any Conv layer parameters, use pooling or only strides,
+        # use any activation functions, use BN or Dropout, etc.
+        # ====== YOUR CODE: ======
+        import ipdb
+        ipdb.set_trace()
+        K = [64, 128, 256]
+        in_channels = self.in_size[0]
+        num_pooling_layers = 0
+        
+        fa_modules = []
+        for input_chnl, output_chnl in zip([in_channels] + K, K + [out_channels]):
+            fa_modules.extend([nn.Conv2d(input_chnl, output_chnl, self.kernel_sz, padding=2, stride=1), 
+                               nn.BatchNorm2d(output_chnl),
+                               nn.MaxPool2d(self.pool_sz),
+                               nn.LeakyReLU()])
+            num_pooling_layers += 1
+        self.feature_extractor = nn.Sequential(*fa_modules)
+        # ========================
+        
+        h, w = self.in_size[1:]
+        ds_factor = self.pool_sz ** num_polling_layers
+        h_ds, w_ds = h // ds_factor, w // ds_factor
+        
+        classifier_modules = [nn.Linear(h_ds * w_ds, h_ds * w_ds / 4),
+                              nn.ReLU()
+                              nn.Dropout(0.5),
+                              nn.Linear(h_ds * w_ds / 4, 1)]
+        self.classifier = nn.Sequential(*classifier_modules)
         # ========================
 
     def forward(self, x):
@@ -35,7 +69,11 @@ class Discriminator(nn.Module):
         # No need to apply sigmoid to obtain probability - we'll combine it
         # with the loss due to improved numerical stability.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        import ipdb
+        ipdb.set_trace()
+        x = self.feature_extractor(x)
+        x = x.view(-1, x.size(-1))
+        y = self.classifier(x)
         # ========================
         return y
 

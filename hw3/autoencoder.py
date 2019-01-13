@@ -172,7 +172,14 @@ def vae_loss(x, xr, z_mu, z_log_sigma2, x_sigma2):
     # TODO: Implement the VAE pointwise loss calculation.
     # Remember that the covariance matrix of the posterior is diagonal.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    
+    import ipdb
+    ipdb.set_trace()
+
+    dz = z_mu.shape[-1]
+    data_loss = (1 /x_sigma2) * torch.mean((x - xr)**2)
+    loss = -torch.sum(z_log_sigma2) # the VAE loss
+    kldiv_loss = torch.mean(torch.trace(torch.exp(0.5 * z_log_sigma2)) + z_mu**2 -  dz) # TODO: complete this
     # ========================
 
-    return loss, data_loss, kldiv_loss
+    return loss + data_loss - kldiv_loss, data_loss, kldiv_loss
