@@ -39,7 +39,8 @@ class Discriminator(nn.Module):
         num_pooling_layers = 0
         
         fa_modules = []
-        for input_chnl, output_chnl in zip([in_channels] + K, K + [out_channels]):
+        
+        for input_chnl, output_chnl in zip([in_channels] + K, K + [256]):
             fa_modules.extend([nn.Conv2d(input_chnl, output_chnl, self.kernel_sz, padding=2, stride=1), 
                                nn.BatchNorm2d(output_chnl),
                                nn.MaxPool2d(self.pool_sz),
@@ -49,12 +50,12 @@ class Discriminator(nn.Module):
         # ========================
         
         h, w = self.in_size[1:]
-        ds_factor = self.pool_sz ** num_polling_layers
+        ds_factor = self.pool_sz ** num_pooling_layers
         h_ds, w_ds = h // ds_factor, w // ds_factor
         
-        classifier_modules = [nn.Linear(h_ds * w_ds, h_ds * w_ds / 4),
-                              nn.ReLU()
-                              nn.Dropout(0.5),
+        classifier_modules = [nn.Linear(h_ds * w_ds, h_ds * w_ds // 4),
+                              nn.ReLU(),
+                              nn.Dropout(0.2),
                               nn.Linear(h_ds * w_ds / 4, 1)]
         self.classifier = nn.Sequential(*classifier_modules)
         # ========================
