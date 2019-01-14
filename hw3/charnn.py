@@ -307,6 +307,8 @@ class MultilayerGRU(nn.Module):
                 g = torch.tanh(w_xg(x) + w_hg(r * h))
                 h = h * z + (1 - z) * g
 
+                # can't use `h.set_` because "the derivate for
+                # set_ is not implemented" (RuntimeError)
                 layer_states[i] = h
                 x = drop(h)
 

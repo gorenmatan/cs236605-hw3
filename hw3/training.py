@@ -262,14 +262,13 @@ class RNNTrainer(Trainer):
         y_scores = torch.transpose(y_scores, 1, 2)
         self.optimizer.zero_grad()
         loss = self.loss_fn(y_scores, y)
-        # PROBLEM: we need to retain self.hidden_state` between batches (otherwise the
-        # overfit test fails), but then loss.backward doesn't work without
-        # `retain_graph=True`. However, retaining the graphs causes a CUDA Out of Memory
-        # error during the final training (where batch size is 256).
-        # Maybe we don't really need `retain_graph=True` and can find another way?
-        # Maybe the hidden states don't need to `require_gradient`?
-        loss.backward(retain_graph=True)
+        loss.backward()
         self.optimizer.step()
+        # we need to keep track of the hidden_state derivatives, but
+        # can't use `loss.backward(retain_graph=True)` because it is
+        # inefficient and causes a CUDA Out of Memory error. The solution
+        # is to use `detach_`.
+        self.hidden_state.detach_()
         y_pred = torch.argmax(y_scores, dim=1)
         num_correct = torch.sum(y == y_pred)
         # ========================
