@@ -6,6 +6,7 @@ import torch.nn.functional as F
 
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
+from torch.distributions import uniform
 from .autoencoder import EncoderCNN, DecoderCNN
 
 
@@ -93,10 +94,16 @@ class Generator(nn.Module):
         # ====== YOUR CODE: ======
         modules = []
         K = [512, 256, 128, 64]
+        first_layer = False
         for in_channel, out_channel in zip([self.z_dim] + K, K + [out_channels]):
-            padding = 0 if in_channel == self.z_dim else 1
-            block = [nn.ConvTranspose2d(in_channel, out_channel, featuremap_size, 1, padding, bias=False), nn.Tanh()] if out_channel == out_channels \
-                else [nn.ConvTranspose2d(in_channel, out_channel, featuremap_size, 1, padding, bias=False),
+            if not first_layer:
+                first_layer = True
+                padding = 0
+            else:
+                padding = 1
+
+            block = [nn.ConvTranspose2d(in_channel, out_channel, featuremap_size, 2, padding, bias=False), nn.Tanh()] if out_channel == out_channels \
+                else [nn.ConvTranspose2d(in_channel, out_channel, featuremap_size, 2, padding, bias=False),
                       nn.BatchNorm2d(out_channel),
                       nn.ReLU()]
             modules.extend(block)
@@ -117,7 +124,14 @@ class Generator(nn.Module):
         # Generate n latent space samples and return their reconstructions.
         # Don't use a loop.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        # enable or disable autograd
+        torch.autograd.set_grad_enabled(with_grad)
+
+        # generate random samples from the latent space
+        z = torch.randn([n, self.z_dim], device=device, requires_grad=with_grad)
+
+        # forward the batch and get the results
+        samples = self.forward(z)
         # ========================
         return samples
 
@@ -131,6 +145,8 @@ class Generator(nn.Module):
         # Don't forget to make sure the output instances have the same scale
         # as the original (real) images.
         # ====== YOUR CODE: ======
+        z = torch.unsqueeze(z, dim=2)
+        z = torch.unsqueeze(z, dim=3)
         # ========================
         return self.seq(z)
 
@@ -154,7 +170,20 @@ def discriminator_loss_fn(y_data, y_generated, data_label=0, label_noise=0.0):
     # TODO: Implement the discriminator loss.
     # See torch's BCEWithLogitsLoss for a numerically stable implementation.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    # create a tensor of positive (real) and negative (fake) labels
+    pos_label = torch.full(y_data.size(), data_label, device=y_data.device)
+    neg_label = 1 - pos_label
+
+    # create the margin of the noise
+    a, b = -label_noise / 2, label_noise / 2
+
+    # add uniform noise to the labels
+    pos_label_noisy = pos_label + uniform.Uniform(a, b).sample(pos_label.size())
+    neg_label_noisy = neg_label + uniform.Uniform(a, b).sample(neg_label.size())
+
+    # calculate the BCE for the real and fake classifications
+    loss_data = F.binary_cross_entropy_with_logits(y_data, pos_label_noisy)
+    loss_generated = F.binary_cross_entropy_with_logits(y_generated, neg_label_noisy)
     # ========================
     return loss_data + loss_generated
 
@@ -173,7 +202,8 @@ def generator_loss_fn(y_generated, data_label=0):
     # Think about what you need to compare the input to, in order to
     # formulate the loss in terms of Binary Cross Entropy.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    negative_label = torch.full(y_generated.size(), data_label, device=y_generated.device)
+    loss = F.binary_cross_entropy_with_logits(y_generated, negative_label)
     # ========================
     return loss
 
