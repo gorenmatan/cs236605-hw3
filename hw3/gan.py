@@ -91,7 +91,17 @@ class Generator(nn.Module):
         # section or implement something new.
         # You can assume a fixed image size.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        modules = []
+        K = [512, 256, 128, 64]
+        for in_channel, out_channel in zip([self.z_dim] + K, K + [out_channels]):
+            padding = 0 if in_channel == self.z_dim else 1
+            block = [nn.ConvTranspose2d(in_channel, out_channel, featuremap_size, 1, padding, bias=False), nn.Tanh()] if out_channel == out_channels \
+                else [nn.ConvTranspose2d(in_channel, out_channel, featuremap_size, 1, padding, bias=False),
+                      nn.BatchNorm2d(out_channel),
+                      nn.ReLU()]
+            modules.extend(block)
+
+        self.seq = nn.Sequential(*modules)
         # ========================
 
     def sample(self, n, with_grad=False):
@@ -121,9 +131,8 @@ class Generator(nn.Module):
         # Don't forget to make sure the output instances have the same scale
         # as the original (real) images.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
         # ========================
-        return x
+        return self.seq(z)
 
 
 def discriminator_loss_fn(y_data, y_generated, data_label=0, label_noise=0.0):
