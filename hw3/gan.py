@@ -43,7 +43,7 @@ class Discriminator(nn.Module):
             fa_modules.extend([nn.Conv2d(input_chnl, output_chnl, self.kernel_sz, padding=2, stride=1), 
                                nn.BatchNorm2d(output_chnl),
                                nn.MaxPool2d(self.pool_sz),
-                               nn.LeakyReLU()])
+                               nn.LeakyReLU(0.2)])
             num_pooling_layers += 1
         self.feature_extractor = nn.Sequential(*fa_modules)
         # ========================
@@ -93,7 +93,7 @@ class Generator(nn.Module):
         # You can assume a fixed image size.
         # ====== YOUR CODE: ======
         modules = []
-        K = [512, 256, 128, 64]
+        K = [1024, 512, 256, 128]
         first_layer = False
         for in_channel, out_channel in zip([self.z_dim] + K, K + [out_channels]):
             if not first_layer:
