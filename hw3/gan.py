@@ -3,7 +3,7 @@ from typing import Callable
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torch.distributions import uniform
@@ -132,6 +132,9 @@ class Generator(nn.Module):
 
         # forward the batch and get the results
         samples = self.forward(z)
+
+        # enable back the autograd
+        torch.autograd.set_grad_enabled(True)
         # ========================
         return samples
 
@@ -178,8 +181,8 @@ def discriminator_loss_fn(y_data, y_generated, data_label=0, label_noise=0.0):
     a, b = -label_noise / 2, label_noise / 2
 
     # add uniform noise to the labels
-    pos_label_noisy = pos_label + uniform.Uniform(a, b).sample(pos_label.size())
-    neg_label_noisy = neg_label + uniform.Uniform(a, b).sample(neg_label.size())
+    pos_label_noisy = pos_label + uniform.Uniform(a, b).sample(pos_label.size()).to(pos_label.device)
+    neg_label_noisy = neg_label + uniform.Uniform(a, b).sample(neg_label.size()).to(neg_label.device)
 
     # calculate the BCE for the real and fake classifications
     loss_data = F.binary_cross_entropy_with_logits(y_data, pos_label_noisy)
@@ -211,7 +214,7 @@ def generator_loss_fn(y_generated, data_label=0):
 def train_batch(dsc_model: Discriminator, gen_model: Generator,
                 dsc_loss_fn: Callable, gen_loss_fn: Callable,
                 dsc_optimizer: Optimizer, gen_optimizer: Optimizer,
-                x_data: DataLoader):
+                x_data: Tensor):
     """
     Trains a GAN for over one batch, updating both the discriminator and
     generator.
@@ -223,7 +226,25 @@ def train_batch(dsc_model: Discriminator, gen_model: Generator,
     # 2. Calculate discriminator loss
     # 3. Update discriminator parameters
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    dsc_optimizer.zero_grad()
+
+    # forward
+    real_batch = x_data
+    fake_batch = gen_model.sample(x_data.shape[0], with_grad=True)
+
+    assert real_batch.size() == fake_batch.size()
+
+    # get the result for the real and fake images
+    real_targets = dsc_model(real_batch)
+    fake_targets = dsc_model(fake_batch.detach())
+
+    # calculate d loss and make a backward calculation to calculate the gradients
+    dsc_loss = dsc_loss_fn(real_targets, fake_targets)
+
+    # train the weights using the optimizer
+    dsc_loss.backward()
+    dsc_optimizer.step()
+
     # ========================
 
     # TODO: Generator update
@@ -231,7 +252,17 @@ def train_batch(dsc_model: Discriminator, gen_model: Generator,
     # 2. Calculate generator loss
     # 3. Update generator parameters
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    gen_optimizer.zero_grad()
+
+    # forward
+    fake_targets = dsc_model(fake_batch)
+
+    # calculate g and make a backward calculation to calculate the gradients
+    gen_loss = gen_loss_fn(fake_targets)
+
+    # train the weights using the optimizer
+    gen_loss.backward()
+    gen_optimizer.step()
     # ========================
 
     return dsc_loss.item(), gen_loss.item()
