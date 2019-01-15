@@ -172,25 +172,23 @@ def vae_loss(x, xr, z_mu, z_log_sigma2, x_sigma2):
     # TODO: Implement the VAE pointwise loss calculation.
     # Remember that the covariance matrix of the posterior is diagonal.
     # ====== YOUR CODE: ======
-    # there is some bug here or in the test in the notebook, the implementation
-    # looks correct to me except maybe for log_sigma.
-    # the notebook expects a loss of ~10.505, but just the data_loss (i.e. the
-    # squared norm of (x-xr)) is approximately 100000...
     z_dim = z_mu.shape[1]
-    log_sigma = z_log_sigma2 / 2 # is this correct?
+    log_sigma = z_log_sigma2
     sigma = torch.exp(log_sigma)
     x = x.view(x.shape[0], -1)
     xr = xr.view(xr.shape[0], -1)
 
     data_loss = torch.sum((x - xr) ** 2, dim=1) / x_sigma2
-
     tr_sigma = torch.sum(sigma, dim=1)
     norm2_mu = torch.sum(z_mu ** 2, dim=1)
     log_det_sigma = torch.sum(log_sigma, dim=1)
     kldiv_loss = tr_sigma + norm2_mu - z_dim - log_det_sigma
 
-    data_loss = torch.mean(data_loss)
-    kldiv_loss = torch.mean(kldiv_loss)
+    # additional average over the 2nd dimension (of instance space for
+    # data loss, and of latent space for kldiv loss) actually makes it
+    # work, but don't ask me why. Time to hit the books.
+    data_loss = torch.mean(data_loss) / x.shape[1]
+    kldiv_loss = torch.mean(kldiv_loss) / z_dim
     loss = data_loss + kldiv_loss
     # ========================
 
