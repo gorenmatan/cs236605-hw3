@@ -264,11 +264,26 @@ class RNNTrainer(Trainer):
         loss = self.loss_fn(y_scores, y)
         loss.backward()
         self.optimizer.step()
-        # we need to keep track of the hidden_state derivatives, but
-        # can't use `loss.backward(retain_graph=True)` because it is
-        # inefficient and causes a CUDA Out of Memory error. The solution
-        # is to use `detach_`.
-        self.hidden_state.detach_()
+
+        # in truncated BPTT, we want to consider only the gradient
+        # of the (time-wise) last several hidden states. The way to
+        # do it is by zeroing the gradient, and maybe detaching
+        # as well.
+        # option 1:
+        #self.hidden_state.detach_()
+        # option 2:
+        self.hidden_state = self.hidden_state.detach()
+        self.hidden_state.requires_grad = True
+        # option 3:
+        #self.hidden_state.grad.zero_()
+        # option 4:
+        #self.hidden_state.detach_()
+        #self.hidden_state.grad.zero_()
+        # option 5:
+        # store a list of the last T hidden states. When a state
+        # becomes too old, zero its gradient and remove it from
+        # the list (maybe also detach its graph)
+
         y_pred = torch.argmax(y_scores, dim=1)
         num_correct = torch.sum(y == y_pred)
         # ========================
