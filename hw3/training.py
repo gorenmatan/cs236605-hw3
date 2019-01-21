@@ -260,13 +260,13 @@ class RNNTrainer(Trainer):
         # need to transpose to match the shape the loss function
         # (CrossEntropy in the notebook) expects
         y_scores = torch.transpose(y_scores, 1, 2)
-        self.optimizer.zero_grad()
         loss = self.loss_fn(y_scores, y)
+        self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        self.hidden_state.detach_()
-        self.hidden_state.requires_grad = True
+        self.hidden_state = self.hidden_state.detach()
+        self.hidden_state.requires_grad = False
 
         y_pred = torch.argmax(y_scores, dim=1)
         num_correct = torch.sum(y == y_pred)
