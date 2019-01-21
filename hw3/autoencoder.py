@@ -19,7 +19,8 @@ class EncoderCNN(nn.Module):
         kernel_sz = 5
         K = [64, 128, 256]
         for input_chnl, output_chnl in zip([in_channels] + K, K + [out_channels]):
-            modules.extend([nn.Conv2d(input_chnl, output_chnl, kernel_sz, padding=2, stride=2),
+            modules.extend([nn.Conv2d(input_chnl, output_chnl, kernel_sz,
+                                      padding=2, stride=2, bias=False),
                             nn.BatchNorm2d(output_chnl),
                             nn.ReLU()])
         # ========================
@@ -47,7 +48,8 @@ class DecoderCNN(nn.Module):
         K = [256, 128, 64]
         for input_chnl, output_chnl in zip([in_channels] + K, K + [out_channels]):
             modules.extend([nn.ConvTranspose2d(input_chnl, output_chnl, kernel_sz,
-                                               padding=2, stride=2, output_padding=1),
+                                               padding=2, stride=2, output_padding=1,
+                                               bias=False),
                             nn.BatchNorm2d(output_chnl),
                             nn.ReLU()])
         # ========================
@@ -77,16 +79,8 @@ class VAE(nn.Module):
 
         # TODO: Add parameters needed for encode() and decode().
         # ====== YOUR CODE: ======
-        # get the dimension of the feature output
-        #import ipdb
-        #ipdb.set_trace()
         device = next(self.parameters()).device
-        x = torch.randn(1, *in_size, device=device)
-        h = self.features_encoder(x)
-        self.h_shape = h.shape[1:]
-        # nn.Linear can't handle LongTensor as the output dimension (probably a
-        # bug), hence must use `.item()`
-        h_dim = torch.tensor(self.h_shape).prod().item()
+        h_dim = n_features
         
         # create the affine transformation layers for the encode() and decode() operations
         self.fc_u, self.fc_logvar = nn.Linear(h_dim ,z_dim).to(device), nn.Linear(h_dim, z_dim).to(device)
@@ -131,7 +125,8 @@ class VAE(nn.Module):
         z = z.to(device)
 
         h_rec = self.fc_rec(z)
-        h_rec = h_rec.view(h_rec.size(0), *self.h_shape) # creates a tensor of size (BATCH_SZ, ORIG_DIMENSIONS)
+        # creates a tensor of size (BATCH_SZ, ORIG_DIMENSIONS)
+        h_rec = h_rec.view(h_rec.size(0), *self.features_shape)
         x_rec = self.features_decoder(h_rec)
         # ========================
 
